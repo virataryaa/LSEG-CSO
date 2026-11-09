@@ -22,7 +22,13 @@ NAVY, TEAL, GREEN, RED, AMBER, GREY = "#0a2463", "#1f8a9c", "#1f9d6f", "#c94a4a"
 SERIES_COLORS = [NAVY, RED, TEAL, AMBER, GREEN, "#9b6bb3", "#6b7fb5", "#e0763c"]
 
 COMMODITIES = [
-    dict(key="KC", label="Arabica", name="Arabica Coffee CSO", exch="ICE US", unit="c/lb"),
+    # dec = decimals for prices / futures spread; steps = strike-step choices (index 0 = Exact), step = default
+    dict(key="KC",  label="Arabica",      name="Arabica Coffee CSO", exch="ICE US",     unit="c/lb",
+         dec=2, steps=["Exact", 0.25, 0.5, 1.0, 2.5, 5.0], step=1.0),
+    dict(key="LRC", label="Robusta",      name="Robusta Coffee CSO", exch="ICE Europe", unit="$/t",
+         dec=0, steps=["Exact", 5.0, 10.0, 25.0, 50.0], step=5.0),
+    dict(key="LCC", label="London Cocoa", name="London Cocoa CSO",   exch="ICE Europe", unit="&pound;/t",
+         dec=0, steps=["Exact", 5.0, 10.0, 25.0, 50.0], step=10.0),
 ]
 
 
@@ -66,7 +72,7 @@ def load_cso(key: str) -> pd.DataFrame:
     df["date"] = pd.to_datetime(df["date"])
     for col in ("settle", "oi", "volume"):
         df[col] = pd.to_numeric(df[col], errors="coerce").astype(float)
-    df["spread"] = df["front_leg"].str[2:] + "-" + df["back_leg"].str[2:]
+    df["spread"] = df["front_leg"].str[-2:] + "-" + df["back_leg"].str[-2:]   # "Z6-H7" (legs are KCZ6 / LRCF7 / LCCH7)
     df["series"] = df["spread_months"].astype(str) + "M " + df["spread"]
     df["sort"] = df["contract_year"] * 100 + df["contract_month"] + df["spread_months"] / 10
     return df
@@ -236,7 +242,7 @@ def project_rics(lookup: dict, rows) -> dict:
 
 
 def butterfly(cpiv, ppiv, meta, und, color, fmt="{:,.0f}", title="KC", show_zero=False, footer=True,
-              ric_lookup=None, rows=None, kpi=None):
+              ric_lookup=None, rows=None, kpi=None, und_dec=2):
     """Calls on the left (series mirrored), signed strike in the centre, puts on the right.
     `meta` = the series_meta rows to show. `rows` = strike ladder (default: strikes with a value).
     `kpi` = {"calls": (label, value, sub), "mid": (label, value), "puts": (label, value, sub)} drawn as
@@ -286,7 +292,7 @@ def butterfly(cpiv, ppiv, meta, und, color, fmt="{:,.0f}", title="KC", show_zero
 
     def uf(s):
         sp = M.loc[s, "spread"]
-        return f"{und[sp]:.2f}" if sp in und else "&ndash;"
+        return f"{und[sp]:,.{und_dec}f}" if sp in und else "&ndash;"
 
     nc, npt = len(ccols), len(pcols)
     h = [f"<thead><tr class='b1'><th colspan='{nc}' class='cb'>Calls</th>"

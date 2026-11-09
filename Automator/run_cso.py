@@ -1,20 +1,22 @@
 """
-run_cso.py - daily automator for KC calendar spread options (Task "0000.6.3) LSEG - CSO", 16:45).
+run_cso.py - daily automator for calendar spread options: KC, LRC, LCC (not scheduled yet).
 
-1. Run Code/kc_cso_ingest_lseg.py (daily mode: OI>0 today + RICs already stored, 30-day window).
-2. If it succeeded, git add/commit/push the two parquets so Streamlit Cloud picks them up.
+1. Run Code/cso_ingest_lseg.py --commodity <K> for each commodity
+   (daily mode: OI>0 today + RICs already stored, 30-day window, OI top-up).
+2. git add/commit/push the parquets of the commodities that succeeded, so Streamlit Cloud picks them up.
 Needs LSEG Workspace open (the ingest talks to the local Workspace proxy).
 Everything is appended to Automator/run_log.txt.
 """
 import datetime
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 LOG = Path(__file__).resolve().parent / "run_log.txt"
-INGEST = ROOT / "Code" / "kc_cso_ingest_lseg.py"
-DATA = ["Database/KC_cso.parquet", "Database/KC_cso_underlying.parquet"]
+INGEST = ROOT / "Code" / "cso_ingest_lseg.py"
+COMMODITIES = ["KC", "LRC", "LCC"]
 
 
 def log(msg: str):
@@ -31,24 +33,31 @@ def run(cmd, **kw):
 
 def main() -> int:
     log("=== CSO run start ===")
-    code, out = run([sys.executable, str(INGEST), "--days", "30"], env={**__import__("os").environ, "PYTHONIOENCODING": "utf-8"})
-    tail = "\n".join(l for l in out.splitlines() if " INFO " in l or "ERROR" in l or "WARNING" in l)[-2000:]
-    log(f"ingest exit {code}\n{tail}")
-    if code != 0:
-        log("ingest FAILED - nothing pushed")
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+    data, failed = [], []
+    for k in COMMODITIES:
+        code, out = run([sys.executable, str(INGEST), "--commodity", k, "--days", "30"], env=env)
+        tail = "\n".join(l for l in out.splitlines() if " INFO " in l or "ERROR" in l or "WARNING" in l)[-1500:]
+        log(f"{k} ingest exit {code}\n{tail}")
+        if code == 0:
+            data += [f"Database/{k}_cso.parquet", f"Database/{k}_cso_underlying.parquet"]
+        else:
+            failed.append(k)
+    data = [f for f in data if (ROOT / f).exists()]
+    if not data:
+        log("every ingest FAILED - nothing pushed")
         return 1
-    for cmd in (["git", "add"] + DATA,
-                ["git", "commit", "-m", f"auto: KC CSO update (LSEG) {datetime.date.today()}"],
-                ["git", "push"]):
+    msg = f"auto: CSO update (LSEG) {datetime.date.today()}" + (f" - failed: {failed}" if failed else "")
+    for cmd in (["git", "add"] + data, ["git", "commit", "-m", msg], ["git", "push"]):
         code, out = run(cmd)
         if code != 0:
             if "nothing to commit" in out:
                 log("git: nothing new to commit")
-                return 0
+                return 1 if failed else 0
             log(f"git FAILED: {' '.join(cmd)}\n{out[-800:]}")
             return 1
-    log("pushed")
-    return 0
+    log("pushed" + (f" (failed: {failed})" if failed else ""))
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
