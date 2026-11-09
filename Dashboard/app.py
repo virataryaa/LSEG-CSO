@@ -176,7 +176,6 @@ with st.sidebar:
         [("Contracts", "l d"), (f"{df['ric'].nunique()}", "")],
         [("OI latest", "l d"), (c.fmt_num(last["oi"].sum()), "")],
     ], cls="rpt sb").replace("class='rwrap'", "class='rwrap sb'"))
-    md("<div class='note'>Only contracts with open interest are fetched.</div>")
 
 # series shown: those with any row on either date
 _both = df[df["date"].isin([old_date, new_date])]
@@ -460,8 +459,6 @@ def history_view():
     c.chart_layout(fig2, "Open interest, calls vs puts", height=320)
     fig2.update_layout(barmode="stack")
     st.plotly_chart(fig2, width="stretch", key="hist_cp", config={"displaylogo": False})
-    md("<div class='note'>Only contracts that had open interest when the data was last fetched are stored, "
-       "so contracts already closed out before that don't show up in earlier dates.</div>")
 
 
 # =============================================================================================
