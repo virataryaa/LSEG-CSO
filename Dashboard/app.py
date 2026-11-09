@@ -235,11 +235,11 @@ def oi_change_view():
     lc = c.total(mo(c.level(df, OI_NEW, "C", "oi"), "C"), SERIES)
     lp = c.total(mo(c.level(df, OI_NEW, "P", "oi"), "P"), SERIES)
     net = np.nansum([c_oi, p_oi]) if not (np.isnan(c_oi) and np.isnan(p_oi)) else np.nan
-    oi_kpi = dict(calls=("Calls OI change", c.signed(c_oi), f"OI now {c.fmt_num(lc)}"),
-                  mid=("Net", c.signed(net), f"P/C {ratio(lp, lc)}"),
-                  puts=("Puts OI change", c.signed(p_oi), f"OI now {c.fmt_num(lp)}"))
+    oi_kpi = dict(calls=("Calls OI change", c.signed(c_oi), f"<span class='kt'>OI now</span>{c.fmt_num(lc)}"),
+                  mid=("Net", c.signed(net), f"<span class='kt'>P/C</span>{ratio(lp, lc)}"),
+                  puts=("Puts OI change", c.signed(p_oi), f"<span class='kt'>OI now</span>{c.fmt_num(lp)}"))
     vol_kpi = dict(calls=("Calls volume", c.fmt_num(c_v), "lots"),
-                   mid=("P/C", ratio(p_v, c_v)),
+                   mid=("Vol", "", f"<span class='kt'>P/C</span>{ratio(p_v, c_v)}"),
                    puts=("Puts volume", c.fmt_num(p_v), "lots"))
     l, r = pair()
     with l:
@@ -260,7 +260,7 @@ def oi_levels_view():
         und = c.und_on(UND, d)
         cp, pp = mo(c.level(df, d, "C", "oi"), "C"), mo(c.level(df, d, "P", "oi"), "P")
         tc, tp = c.total(cp, SERIES), c.total(pp, SERIES)
-        kpi = dict(calls=("Calls OI", c.fmt_num(tc), "lots"), mid=("P/C", ratio(tp, tc)),
+        kpi = dict(calls=("Calls OI", c.fmt_num(tc), "lots"), mid=("OI", "", f"<span class='kt'>P/C</span>{ratio(tp, tc)}"),
                    puts=("Puts OI", c.fmt_num(tp), "lots"))
         with col:
             md(f"<div class='mt'>Open Interest &middot; {tag}<span>{c.fmt_date(d)}</span></div>")
