@@ -135,8 +135,15 @@ if df.empty:
     st.stop()
 UND = c.load_underlying(KEY)
 DATES = sorted(pd.Timestamp(d) for d in df["date"].unique())
-_def_new = DATES[-1]
-_def_old = DATES[max(0, len(DATES) - 6)]          # 5 sessions back
+OI_DATES = sorted(pd.Timestamp(d) for d in df.loc[df["oi"].notna(), "date"].unique())
+def oi_on(d):
+    """Latest date on or before d that has OI (OI lags prices by a day)."""
+    x = [o for o in OI_DATES if o <= d]
+    return x[-1] if x else None
+
+
+_def_new = OI_DATES[-1] if OI_DATES else DATES[-1]   # OI comes out a day after prices
+_def_old = DATES[max(0, DATES.index(_def_new) - 5)]   # 5 sessions back
 
 with st.sidebar:
     label("Old date", 10)
@@ -158,9 +165,10 @@ with st.sidebar:
     min_oi = st.number_input("Min OI", value=0, min_value=0, step=50, key=f"{KP}_min_oi", label_visibility="collapsed")
 
     md("<div class='sb-label' style='margin-top:16px'>Data status</div>")
-    last = df[df["date"] == DATES[-1]]
+    last = df[df["date"] == (OI_DATES[-1] if OI_DATES else DATES[-1])]
     md(c.compact_table(["", "Value"], [
-        [("Latest", "l d"), (c.fmt_date(DATES[-1], False), "")],
+        [("Prices to", "l d"), (c.fmt_date(DATES[-1], False), "")],
+        [("OI to", "l d"), (c.fmt_date(OI_DATES[-1], False) if OI_DATES else "&mdash;", "")],
         [("From", "l d"), (c.fmt_date(DATES[0], False), "")],
         [("Contracts", "l d"), (f"{df['ric'].nunique()}", "")],
         [("OI latest", "l d"), (c.fmt_num(last["oi"].sum()), "")],
@@ -180,6 +188,7 @@ else:
     RIC_ROWS = c.project_rics(RICS, ROWS)
 OFF_STEP = [k for k in LADDER if k not in set(ROWS)]
 UND_NEW = c.und_on(UND, new_date)
+OI_NEW, OI_OLD = oi_on(new_date), oi_on(old_date)
 UND_OLD = c.und_on(UND, old_date)
 
 md(f"<div class='ph'><span class='t'>{cm['name']}</span>"
@@ -202,7 +211,7 @@ def bfly(cp, pp, color, fmt="{:,.0f}", und=None, how="sum", **kw):
 
 
 def mo(piv, pc):
-    return c.apply_min_oi(piv, df, new_date, pc, min_oi)
+    return c.apply_min_oi(piv, df, OI_NEW, pc, min_oi) if OI_NEW is not None else piv
 
 
 def ratio(a, b):
@@ -218,13 +227,13 @@ def legend_note():
 # Positioning
 # =============================================================================================
 def oi_change_view():
-    coi, poi = mo(c.change(df, old_date, new_date, "C", "oi"), "C"), mo(c.change(df, old_date, new_date, "P", "oi"), "P")
+    coi, poi = mo(c.change(df, OI_OLD, OI_NEW, "C", "oi"), "C"), mo(c.change(df, OI_OLD, OI_NEW, "P", "oi"), "P")
     cvol, pvol = mo(c.volume(df, old_date, new_date, "C"), "C"), mo(c.volume(df, old_date, new_date, "P"), "P")
     sess = c.sessions(df, old_date, new_date)
     c_oi, p_oi = c.total(coi, SERIES), c.total(poi, SERIES)
     c_v, p_v = c.total(cvol, SERIES), c.total(pvol, SERIES)
-    lc = c.total(mo(c.level(df, new_date, "C", "oi"), "C"), SERIES)
-    lp = c.total(mo(c.level(df, new_date, "P", "oi"), "P"), SERIES)
+    lc = c.total(mo(c.level(df, OI_NEW, "C", "oi"), "C"), SERIES)
+    lp = c.total(mo(c.level(df, OI_NEW, "P", "oi"), "P"), SERIES)
     net = np.nansum([c_oi, p_oi]) if not (np.isnan(c_oi) and np.isnan(p_oi)) else np.nan
     oi_kpi = dict(calls=("Calls OI change", c.signed(c_oi), f"OI now {c.fmt_num(lc)}"),
                   mid=("Net", c.signed(net)),
@@ -234,7 +243,7 @@ def oi_change_view():
                    puts=("Puts volume", c.fmt_num(p_v), "lots"))
     l, r = pair()
     with l:
-        md(f"<div class='mt'>Open Interest Change<span>{c.fmt_date(old_date, False)} &rarr; {c.fmt_date(new_date)}</span></div>")
+        md(f"<div class='mt'>Open Interest Change<span>{c.fmt_date(OI_OLD, False)} &rarr; {c.fmt_date(OI_NEW)}</span></div>")
         bfly(coi, poi, c.heat_signed, fmt="{:+,.0f}", kpi=oi_kpi)
     with r:
         span = (c.fmt_date(sess[0], False) + " &ndash; " if len(sess) > 1 else "") + c.fmt_date(sess[-1]) if sess else "&mdash;"
@@ -245,7 +254,7 @@ def oi_change_view():
 
 def oi_levels_view():
     l, r = pair()
-    for col, d, tag, und in [(l, old_date, "Old", UND_OLD), (r, new_date, "New", UND_NEW)]:
+    for col, d, tag, und in [(l, OI_OLD, "Old", UND_OLD), (r, OI_NEW, "New", UND_NEW)]:
         cp, pp = mo(c.level(df, d, "C", "oi"), "C"), mo(c.level(df, d, "P", "oi"), "P")
         tc, tp = c.total(cp, SERIES), c.total(pp, SERIES)
         kpi = dict(calls=("Calls OI", c.fmt_num(tc), "lots"), mid=("P/C", ratio(tp, tc)),

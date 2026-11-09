@@ -183,9 +183,8 @@ def main():
         ld.close_session()
     if hist.empty:
         log.error("no history fetched"); sys.exit(1)
-    # get_history's newest day carries no OPINT_1 yet -> fill it from today's snapshot
-    last = hist.date == hist.date.max()
-    hist.loc[last, "oi"] = hist.loc[last, "oi"].fillna(hist.loc[last, "ric"].map(live)).astype("Int64")
+    # OI is published a day after prices: the newest day's OPINT_1 stays empty until the next run.
+    # (Do NOT fill it from get_data - that snapshot OI is the previous day's too.)
     hist = hist.merge(meta, on="ric", how="left")
     full = upsert(hist)
     upsert_underlying(und)
