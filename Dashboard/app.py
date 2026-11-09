@@ -175,7 +175,7 @@ with st.sidebar:
     ], cls="rpt sb").replace("class='rwrap'", "class='rwrap sb'"))
     md("<div class='note'>Only contracts with open interest are fetched.</div>")
 
-# series shown: those with any row on either date, filtered by width
+# series shown: those with any row on either date
 _both = df[df["date"].isin([old_date, new_date])]
 META = c.series_meta(_both if not _both.empty else df)
 SERIES = list(META["series"])
@@ -218,11 +218,6 @@ def ratio(a, b):
     return f"{a / b:.2f}" if b and not np.isnan(a) and not np.isnan(b) else "&mdash;"
 
 
-def legend_note():
-    pass
-
-
-
 # =============================================================================================
 # Positioning
 # =============================================================================================
@@ -249,7 +244,6 @@ def oi_change_view():
         span = (c.fmt_date(sess[0], False) + " &ndash; " if len(sess) > 1 else "") + c.fmt_date(sess[-1]) if sess else "&mdash;"
         md(f"<div class='mt'>Volume<span>{len(sess)} session{'s' if len(sess) != 1 else ''}, {span}</span></div>")
         bfly(cvol, pvol, c.heat_volume, kpi=vol_kpi)
-    legend_note()
 
 
 def oi_levels_view():
@@ -262,11 +256,10 @@ def oi_levels_view():
         with col:
             md(f"<div class='mt'>Open Interest &middot; {tag}<span>{c.fmt_date(d)}</span></div>")
             bfly(cp, pp, c.heat_volume, und=und, kpi=kpi)
-    legend_note()
 
 
 def history_view():
-    sub = df[df["series"].isin(SERIES)]
+    sub = df[df["series"].isin(SERIES) & df["oi"].notna()]   # newest price day has no OI yet: not a 0
     daily = sub.groupby(["date", "series"], as_index=False)["oi"].sum()
     order = list(META["series"])
     fig = go.Figure()
@@ -301,7 +294,6 @@ def settle_view():
             md(f"<div class='mt'>Settle &middot; {tag}<span>{c.fmt_date(d)}</span></div>")
             bfly(mo(c.level(df, d, "C", "settle"), "C"), mo(c.level(df, d, "P", "settle"), "P"),
                  c.heat_level, fmt="{:,.2f}", und=und, footer=False, how="nearest")
-    legend_note()
 
 
 def settle_change_view():
