@@ -1,8 +1,10 @@
 """
 kc_cso_ingest_lseg.py - KC (Arabica) Calendar Spread Options from LSEG -> Database/KC_cso.parquet
 
-Universe: discovered via LSEG search (KC1C = 1-month spread; KC2C 2-month is left out), then
-filtered to RICs with OPINT_1 > 0 on today's snapshot. Only those get history.
+Universe (KC1C = 1-month spreads; KC2C 2-month is left out):
+  --full (or no parquet yet): history for EVERY live RIC, keep those with OI > 0 on any day in the window.
+  daily: RICs with OPINT_1 > 0 on today's snapshot, plus every live RIC already in the parquet. Contracts
+         that close out keep being fetched, so their OI is recorded falling to 0 instead of vanishing.
 
 RIC: KC<n>C<|strike|*100><code><yy><P|N>  e.g. KC1C1500L26P = 1M spread +15.00 Call Dec26 (Z6-H7)
   code A-L = Jan-Dec call, M-X = Jan-Dec put (FRONT leg contract month); P/N = strike sign.
@@ -10,7 +12,7 @@ RIC: KC<n>C<|strike|*100><code><yy><P|N>  e.g. KC1C1500L26P = 1M spread +15.00 C
 Rate limiting: get_history is one HTTP call per RIC, so we fetch in small batches with a pause
 between them, and back off on 429s. Upsert never deletes stored rows.
 
-Usage:  python kc_cso_ingest_lseg.py [--days 30]
+Usage:  python kc_cso_ingest_lseg.py [--days 30] [--full]
 """
 import argparse, logging, re, sys, time
 from pathlib import Path
@@ -150,14 +152,16 @@ def upsert_underlying(new: pd.DataFrame):
     if new.empty:
         return
     if UND_OUT.exists():
-        new = pd.concat([pd.read_parquet(UND_OUT), new]).drop_duplicates(["date", "spread"], keep="last")
+        new = pd.concat([pd.read_parquet(UND_OUT), new], ignore_index=True).groupby(["date", "spread"], as_index=False).last()
     new.sort_values(["date", "spread"]).to_parquet(UND_OUT, index=False)
 
 
 def upsert(new: pd.DataFrame):
     if OUT.exists():
         old = pd.read_parquet(OUT)
-        new = pd.concat([old, new]).drop_duplicates(["date", "ric"], keep="last")
+        # groupby().last() takes the newest NON-NULL value per column, so an empty field in a
+        # new fetch never wipes a value already stored
+        new = pd.concat([old, new], ignore_index=True).groupby(["date", "ric"], as_index=False, sort=False).last()
     new = new.sort_values(["date", "spread_months", "contract_year", "contract_month", "put_call", "strike"])
     new.to_parquet(OUT, index=False)
     return new
@@ -165,17 +169,30 @@ def upsert(new: pd.DataFrame):
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--days", type=int, default=30)
+    ap.add_argument("--full", action="store_true", help="fetch every live RIC, keep any with OI > 0 in the window")
     args = ap.parse_args()
+    full = args.full or not OUT.exists()
     end = pd.Timestamp.today().normalize()
     start = end - pd.Timedelta(days=args.days)
     t0 = time.time()
     ld.open_session()
     try:
         meta = discover()
-        live = oi_filter(meta.ric.tolist())
-        log.info("OI>0: %d of %d RICs", len(live), len(meta))
-        hist = fetch_history(list(live), start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"))
-        lm = meta[meta.ric.isin(live)]
+        if full:
+            universe = meta.ric.tolist()
+            log.info("FULL: fetching all %d live RICs", len(universe))
+        else:
+            snap = oi_filter(meta.ric.tolist())
+            stored = set(pd.read_parquet(OUT, columns=["ric"]).ric) & set(meta.ric)
+            universe = sorted(set(snap) | stored)
+            log.info("daily: %d with OI>0 today + %d already stored -> %d RICs", len(snap), len(stored), len(universe))
+        hist = fetch_history(universe, start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"))
+        if full and not hist.empty:
+            keep = hist.groupby("ric")["oi"].max()
+            keep = set(keep[keep > 0].index)
+            hist = hist[hist.ric.isin(keep)]
+            log.info("FULL: %d RICs had OI > 0 in the window", len(keep))
+        lm = meta[meta.ric.isin(set(hist.ric) if not hist.empty else set())]
         spreads = sorted({f"{f[2:]}-{b[2:]}" for f, b in zip(lm.front_leg, lm.back_leg) if b})
         und = fetch_underlying(spreads, start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"))
         log.info("underlying spreads %s: %d rows", spreads, len(und))

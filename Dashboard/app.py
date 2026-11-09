@@ -222,9 +222,14 @@ def ratio(a, b):
 # Positioning
 # =============================================================================================
 def oi_change_view():
+    if OI_NEW is None or OI_OLD is None:
+        md("<div class='empty'>No OI on or before the selected dates.</div>")
+        return
+    und = c.und_on(UND, OI_NEW)
     coi, poi = mo(c.change(df, OI_OLD, OI_NEW, "C", "oi"), "C"), mo(c.change(df, OI_OLD, OI_NEW, "P", "oi"), "P")
-    cvol, pvol = mo(c.volume(df, old_date, new_date, "C"), "C"), mo(c.volume(df, old_date, new_date, "P"), "P")
-    sess = c.sessions(df, old_date, new_date)
+    # volume over the same window as the OI change, so the two tables compare like with like
+    cvol, pvol = mo(c.volume(df, OI_OLD, OI_NEW, "C"), "C"), mo(c.volume(df, OI_OLD, OI_NEW, "P"), "P")
+    sess = c.sessions(df, OI_OLD, OI_NEW)
     c_oi, p_oi = c.total(coi, SERIES), c.total(poi, SERIES)
     c_v, p_v = c.total(cvol, SERIES), c.total(pvol, SERIES)
     lc = c.total(mo(c.level(df, OI_NEW, "C", "oi"), "C"), SERIES)
@@ -239,16 +244,20 @@ def oi_change_view():
     l, r = pair()
     with l:
         md(f"<div class='mt'>Open Interest Change<span>{c.fmt_date(OI_OLD, False)} &rarr; {c.fmt_date(OI_NEW)}</span></div>")
-        bfly(coi, poi, c.heat_signed, fmt="{:+,.0f}", kpi=oi_kpi)
+        bfly(coi, poi, c.heat_signed, fmt="{:+,.0f}", kpi=oi_kpi, und=und)
     with r:
         span = (c.fmt_date(sess[0], False) + " &ndash; " if len(sess) > 1 else "") + c.fmt_date(sess[-1]) if sess else "&mdash;"
         md(f"<div class='mt'>Volume<span>{len(sess)} session{'s' if len(sess) != 1 else ''}, {span}</span></div>")
-        bfly(cvol, pvol, c.heat_volume, kpi=vol_kpi)
+        bfly(cvol, pvol, c.heat_volume, kpi=vol_kpi, und=und)
 
 
 def oi_levels_view():
+    if OI_NEW is None or OI_OLD is None:
+        md("<div class='empty'>No OI on or before the selected dates.</div>")
+        return
     l, r = pair()
-    for col, d, tag, und in [(l, OI_OLD, "Old", UND_OLD), (r, OI_NEW, "New", UND_NEW)]:
+    for col, d, tag in [(l, OI_OLD, "Old"), (r, OI_NEW, "New")]:
+        und = c.und_on(UND, d)
         cp, pp = mo(c.level(df, d, "C", "oi"), "C"), mo(c.level(df, d, "P", "oi"), "P")
         tc, tp = c.total(cp, SERIES), c.total(pp, SERIES)
         kpi = dict(calls=("Calls OI", c.fmt_num(tc), "lots"), mid=("P/C", ratio(tp, tc)),
