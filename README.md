@@ -1,7 +1,7 @@
 # CSO — Calendar Spread Options (LSEG)
 
 ICE calendar spread options, pulled from the LSEG Data API (`lseg.data`). The folder layout matches `LSEG/Options`
-(Code / Database / Dashboard / Automator). **Status (2026-11-09):** the KC ingest is built (`Code/kc_cso_ingest_lseg.py`). No dashboard yet, and no scheduler.
+(Code / Database / Dashboard / Automator). **Status (2026-11-09):** the KC ingest (`Code/kc_cso_ingest_lseg.py`) and the dashboard (`Dashboard/app.py`) are built. No scheduler and no Streamlit Cloud deploy yet.
 
 ## KC RIC scheme (checked against live LSEG data)
 
@@ -29,11 +29,21 @@ Scripts: `Code/probe_kc_cso.py` (search plus the image naming guesses) and `Code
 
 ## KC ingest - `Code/kc_cso_ingest_lseg.py`
 `python kc_cso_ingest_lseg.py --days 30` -> `Database/KC_cso.parquet` (one row per date x RIC)
-1. Discover KC1C + KC2C, keep only unexpired RICs (about 1,350).
-2. Snapshot `OPINT_1` in batches of 100 and keep **OI > 0 only** (57 RICs on 2026-11-09).
+1. Discover KC1C, keep only unexpired RICs (about 650). KC2C (2-month) was dropped on 2026-11-09: only 2 of its 700 RICs had OI.
+2. Snapshot `OPINT_1` in batches of 100 and keep **OI > 0 only** (55 RICs on 2026-11-09).
 3. Fetch `get_history` (SETTLE, OPINT_1, ACVOL_UNS) 10 RICs per batch, with a 1.5s pause between batches and a backoff on 429s. It takes about 55s, with zero retries.
 4. The newest history day has no OPINT_1 yet, so it is filled from the step-2 snapshot.
-5. Upsert on (date, ric). Stored rows are never deleted.
+5. Fetch the futures spread settle (LSEG RIC `KCZ6-H7`) -> `Database/KC_cso_underlying.parquet`.
+6. Upsert on (date, ric). Stored rows are never deleted.
 
 Columns: date, ric, settle, oi, volume, spread_months (1/2), put_call, strike (signed), contract_month/year,
 front_leg, back_leg (e.g. KCZ6/KCH7), expiry.
+
+## Dashboard - `Dashboard/app.py`
+`streamlit run Dashboard/app.py`. It uses the same theme and login as `LSEG/Options` (password in `.streamlit/secrets.toml`).
+- Butterfly matrix: calls on the left, signed spread strike in the centre, puts on the right. Each column is one spread series (for example Z6-H7).
+- Amber header row = futures spread settle. The outlined cell is each series' at-the-money strike.
+- Strike step (sidebar, default 1): evenly spaced rows. Off-step strikes are added to the nearest row. "Exact" shows the traded strikes only.
+- Hovering a cell shows its LSEG RIC(s), and clicking copies them (`st.html` with JS).
+- Paired tables share one strike ladder, so their rows and heights match. The KPI row sits inside the table, with call figures under the call columns and put figures under the put columns.
+- Views: Positioning (OI change + volume, OI levels, history) and Prices (settle, settle change).

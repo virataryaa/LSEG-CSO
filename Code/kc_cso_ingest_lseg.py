@@ -1,7 +1,7 @@
 """
 kc_cso_ingest_lseg.py - KC (Arabica) Calendar Spread Options from LSEG -> Database/KC_cso.parquet
 
-Universe: discovered via LSEG search (KC1C = 1-month spread, KC2C = 2-month spread), then
+Universe: discovered via LSEG search (KC1C = 1-month spread; KC2C 2-month is left out), then
 filtered to RICs with OPINT_1 > 0 on today's snapshot. Only those get history.
 
 RIC: KC<n>C<|strike|*100><code><yy><P|N>  e.g. KC1C1500L26P = 1M spread +15.00 Call Dec26 (Z6-H7)
@@ -21,8 +21,9 @@ from lseg.data import discovery
 
 ROOT      = Path(__file__).resolve().parent.parent
 OUT       = ROOT / "Database" / "KC_cso.parquet"
+UND_OUT   = ROOT / "Database" / "KC_cso_underlying.parquet"   # futures spread settles, e.g. KCZ6-H7
 LOG       = ROOT / "Code" / "logs" / "kc_cso_ingest_lseg.log"
-PREFIXES  = {"KC1C": 1, "KC2C": 2}              # spread width in listed months
+PREFIXES  = {"KC1C": 1}                         # 1-month spreads only (KC2C dropped 2026-11-09: ~no OI)
 FIELDS    = ["SETTLE", "OPINT_1", "ACVOL_UNS"]  # IMP_VOLT is empty for CSOs on LSEG
 SNAP_BATCH, HIST_BATCH = 100, 10
 PAUSE, RETRIES, BACKOFF = 1.5, 3, 10            # seconds between batches / retry policy
@@ -126,6 +127,33 @@ def fetch_history(rics: list, start: str, end: str) -> pd.DataFrame:
     return df.dropna(subset=["settle", "oi", "volume"], how="all")
 
 
+def fetch_underlying(spreads: list, start: str, end: str) -> pd.DataFrame:
+    """Settle of the futures calendar spread itself (LSEG RIC 'KCZ6-H7' = front minus back)."""
+    rics = [f"KC{s}" for s in spreads]
+    h = with_retry(lambda: ld.get_history(universe=rics, fields=["SETTLE"], start=start, end=end,
+                                          interval="daily", count=2000), "underlying")
+    if h is None or h.empty:
+        return pd.DataFrame()
+    if len(rics) == 1:
+        h.columns = pd.Index(rics)
+    elif isinstance(h.columns, pd.MultiIndex):
+        h.columns = h.columns.get_level_values(0)
+    u = h.reset_index().melt(id_vars=h.index.name or "Date", var_name="ric", value_name="settle")
+    u.columns = ["date", "ric", "settle"]
+    u["spread"] = u["ric"].str[2:]
+    u["date"] = pd.to_datetime(u["date"]).dt.normalize()
+    u["settle"] = pd.to_numeric(u["settle"], errors="coerce")
+    return u.dropna(subset=["settle"])[["date", "spread", "settle"]]
+
+
+def upsert_underlying(new: pd.DataFrame):
+    if new.empty:
+        return
+    if UND_OUT.exists():
+        new = pd.concat([pd.read_parquet(UND_OUT), new]).drop_duplicates(["date", "spread"], keep="last")
+    new.sort_values(["date", "spread"]).to_parquet(UND_OUT, index=False)
+
+
 def upsert(new: pd.DataFrame):
     if OUT.exists():
         old = pd.read_parquet(OUT)
@@ -147,6 +175,10 @@ def main():
         live = oi_filter(meta.ric.tolist())
         log.info("OI>0: %d of %d RICs", len(live), len(meta))
         hist = fetch_history(list(live), start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"))
+        lm = meta[meta.ric.isin(live)]
+        spreads = sorted({f"{f[2:]}-{b[2:]}" for f, b in zip(lm.front_leg, lm.back_leg) if b})
+        und = fetch_underlying(spreads, start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"))
+        log.info("underlying spreads %s: %d rows", spreads, len(und))
     finally:
         ld.close_session()
     if hist.empty:
@@ -156,6 +188,7 @@ def main():
     hist.loc[last, "oi"] = hist.loc[last, "oi"].fillna(hist.loc[last, "ric"].map(live)).astype("Int64")
     hist = hist.merge(meta, on="ric", how="left")
     full = upsert(hist)
+    upsert_underlying(und)
     log.info("wrote %d new rows (%d RICs, %s -> %s); parquet now %d rows; %.0fs",
              len(hist), hist.ric.nunique(), hist.date.min().date(), hist.date.max().date(), len(full), time.time() - t0)
 
