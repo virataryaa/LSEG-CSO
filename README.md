@@ -1,7 +1,7 @@
 # CSO — Calendar Spread Options (LSEG)
 
 ICE calendar spread options, pulled from the LSEG Data API (`lseg.data`). The folder layout matches `LSEG/Options`
-(Code / Database / Dashboard / Automator). **Status: probe only (KC), 2026-11-09.** No ingest or dashboard has been built yet.
+(Code / Database / Dashboard / Automator). **Status (2026-11-09):** the KC ingest is built (`Code/kc_cso_ingest_lseg.py`). No dashboard yet, and no scheduler.
 
 ## KC RIC scheme (checked against live LSEG data)
 
@@ -26,3 +26,14 @@ The strike is the spread level front minus back (cts/lb). Strikes run from -7 to
 
 Scripts: `Code/probe_kc_cso.py` (search plus the image naming guesses) and `Code/probe_kc_cso_2.py` (full board, OI, history).
 `Database/_probe_kc1c_board.csv` holds the discovered KC1C board.
+
+## KC ingest - `Code/kc_cso_ingest_lseg.py`
+`python kc_cso_ingest_lseg.py --days 30` -> `Database/KC_cso.parquet` (one row per date x RIC)
+1. Discover KC1C + KC2C, keep only unexpired RICs (about 1,350).
+2. Snapshot `OPINT_1` in batches of 100 and keep **OI > 0 only** (57 RICs on 2026-11-09).
+3. Fetch `get_history` (SETTLE, OPINT_1, ACVOL_UNS) 10 RICs per batch, with a 1.5s pause between batches and a backoff on 429s. It takes about 55s, with zero retries.
+4. The newest history day has no OPINT_1 yet, so it is filled from the step-2 snapshot.
+5. Upsert on (date, ric). Stored rows are never deleted.
+
+Columns: date, ric, settle, oi, volume, spread_months (1/2), put_call, strike (signed), contract_month/year,
+front_leg, back_leg (e.g. KCZ6/KCH7), expiry.
