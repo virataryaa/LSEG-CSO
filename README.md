@@ -1,7 +1,7 @@
 # CSO — Calendar Spread Options (LSEG)
 
 ICE calendar spread options, pulled from the LSEG Data API (`lseg.data`). The folder layout matches `LSEG/Options`
-(Code / Database / Dashboard / Automator). **Status (2026-11-09):** the KC ingest, the dashboard (live on Streamlit Cloud and in HardMiner as "CSOs") and the daily automator are built.
+(Code / Database / Dashboard / Automator). **Status (2026-11-09):** the KC ingest, the dashboard (live on Streamlit Cloud and in HardMiner as "CSOs") and the daily automator are built. The automator is not scheduled yet.
 
 ## KC RIC scheme (checked against live LSEG data)
 
@@ -53,4 +53,4 @@ front_leg, back_leg (e.g. KCZ6/KCH7), expiry.
 
 ## Automator
 `Automator/run.bat` -> `run_cso.py`: runs the daily ingest, then commits and pushes the two parquets (so Streamlit Cloud updates). Log: `Automator/run_log.txt`.
-Windows Task Scheduler: **0000.6.3) LSEG - CSO**, daily at 16:45 (after the NYC Options task at 16:30). LSEG Workspace must be open.
+**Not scheduled yet** (on hold at the user's request, 2026-11-09). For now, run `Automator/run.bat` by hand. The planned task is "0000.6.3) LSEG - CSO", daily at 16:45 (after the NYC Options task at 16:30). LSEG Workspace must be open.
