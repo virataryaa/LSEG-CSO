@@ -149,6 +149,11 @@ def oi_on(d):
 _def_new = DATES[-1]
 _def_old = DATES[max(0, DATES.index(_def_new) - 5)]   # 5 sessions back
 
+# A date remembered from earlier in the session that is no longer offered falls back to the default.
+for _k in (f"{KP}_old", f"{KP}_new"):
+    if _k in st.session_state and st.session_state[_k] not in DATES:
+        del st.session_state[_k]
+
 with st.sidebar:
     label("Old date", 10)
     old_date = st.selectbox("Old date", DATES, index=DATES.index(_def_old), key=f"{KP}_old",
