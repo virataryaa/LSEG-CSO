@@ -236,8 +236,8 @@ def oi_change_view():
     lp = c.total(mo(c.level(df, OI_NEW, "P", "oi"), "P"), SERIES)
     net = np.nansum([c_oi, p_oi]) if not (np.isnan(c_oi) and np.isnan(p_oi)) else np.nan
     oi_kpi = dict(calls=("Calls OI change", c.signed(c_oi), f"OI now {c.fmt_num(lc)}"),
-                  mid=("Net", c.signed(net)),
-                  puts=("Puts OI change", c.signed(p_oi), f"OI now {c.fmt_num(lp)} &middot; P/C {ratio(lp, lc)}"))
+                  mid=("Net", c.signed(net), f"P/C {ratio(lp, lc)}"),
+                  puts=("Puts OI change", c.signed(p_oi), f"OI now {c.fmt_num(lp)}"))
     vol_kpi = dict(calls=("Calls volume", c.fmt_num(c_v), "lots"),
                    mid=("P/C", ratio(p_v, c_v)),
                    puts=("Puts volume", c.fmt_num(p_v), "lots"))

@@ -325,9 +325,10 @@ def butterfly(cpiv, ppiv, meta, und, color, fmt="{:,.0f}", title="KC", show_zero
             lbl, val, sub = (list(x) + [""])[:3]
             return (f"<div class='kl'>{escape(lbl)}</div><div class='kv'>{val}</div>"
                     + (f"<div class='ks'>{sub}</div>" if sub else ""))
-        ml, mv = kpi.get("mid", ("", ""))
+        ml, mv, ms = (list(kpi.get("mid", ("", ""))) + [""])[:3]
         foot += (f"<tr class='kr'><td colspan='{nc}'>{side(kpi['calls'])}</td>"
-                 f"<td class='k km'><div class='kl'>{escape(ml)}</div><div class='kv'>{mv}</div></td>"
+                 f"<td class='k km'><div class='kl'>{escape(ml)}</div><div class='kv'>{mv}</div>"
+                 + (f"<div class='ks'>{ms}</div>" if ms else "") + "</td>"
                  f"<td colspan='{npt}'>{side(kpi['puts'])}</td></tr>")
     foot = f"<tfoot>{foot}</tfoot>" if foot else ""
     n = nc + npt
