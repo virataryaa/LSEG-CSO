@@ -636,17 +636,17 @@ div[data-testid="stExpander"] { border: 1px solid rgba(43,74,138,.10) !important
 .bft tr.b4 th { height: 1.6em; font-size: .85em; font-weight: 600; background: #fbf4e6 !important; color: #8a5a0c !important; }
 .bft td.k.z { background: #e4ebf7 !important; }
 .bft tr.kr td { background: linear-gradient(180deg, #fbfcfe, #f1f5fb) !important; border-top: 1px solid rgba(43,74,138,.16) !important;
-  padding: 9px 10px 10px !important; text-align: center; vertical-align: middle; white-space: normal !important; }
-.bft tr.kr .kl { font-size: 8.5px; color: #8a94ad; text-transform: uppercase; letter-spacing: .16em; font-weight: 700; }
+  padding: 7px 4px 8px !important; text-align: center; vertical-align: middle; white-space: normal !important; }
+.bft tr.kr .kl { font-size: 8.5px; color: #8a94ad; text-transform: uppercase; letter-spacing: .1em; font-weight: 700; }
 .bft tr.kr .kv { font-size: 17px; font-weight: 700; color: #0a2463; margin-top: 3px; line-height: 1.1; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
 .bft tr.kr .ks { margin-top: 4px; font-size: 10px; color: #4a5578; font-weight: 600; font-variant-numeric: tabular-nums; }
 .bft tr.kr .ks .kt { font-size: 8px; color: #9aa3b8; font-weight: 700; text-transform: uppercase; letter-spacing: .14em; margin-right: 4px; }
-.bft tr.kr td.km { background: linear-gradient(180deg, #eef3fb, #e3eaf6) !important; padding: 9px 12px 10px !important; }
-.bft tr.kr td.km .kv { font-size: 15px; }
-.bft tr.kr td.km .kp { display: inline-block; margin-top: 5px; padding: 2px 8px; border-radius: 999px; background: #ffffff;
-  border: 1px solid rgba(43,74,138,.18); box-shadow: 0 1px 2px rgba(10,36,99,.06); font-size: 10px; font-weight: 700; color: #1e3a6e;
+.bft tr.kr td.km { background: linear-gradient(180deg, #eef3fb, #e3eaf6) !important; padding: 7px 2px 8px !important; }
+.bft tr.kr td.km .kv { font-size: 13px; }
+.bft tr.kr td.km .kp { display: inline-block; margin-top: 4px; padding: 1px 4px; border-radius: 999px; background: #ffffff;
+  border: 1px solid rgba(43,74,138,.18); box-shadow: 0 1px 2px rgba(10,36,99,.06); font-size: 9px; font-weight: 700; color: #1e3a6e;
   white-space: nowrap; font-variant-numeric: tabular-nums; }
-.bft tr.kr td.km .kp .kt { font-size: 8px; color: #8a94ad; letter-spacing: .12em; margin-right: 4px; font-weight: 700; }
+.bft tr.kr td.km .kp .kt { font-size: 7px; color: #8a94ad; letter-spacing: .06em; margin-right: 2px; font-weight: 700; }
 .bft td[data-ric] { cursor: copy; }
 .bft td[data-ric]:hover { outline: 1px solid rgba(43,74,138,.45); outline-offset: -1px; }
 .bft td.copied { outline: 2px solid #1f9d6f !important; outline-offset: -2px; }
